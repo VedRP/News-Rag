@@ -11,6 +11,10 @@ from llm.groq_client import chat, GEN_MODEL
 from llm.prompts.rag_answer import RAG_SYSTEM_PROMPT, build_user_prompt
 from retrieval.retriever import retrieve
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+
 def main():
     print("--- Testing RAG Answer Generation ---")
     fake_intent = {

@@ -4,8 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-FAST_MODEL = "llama-3.1-8b-instant"       # intent parsing, cheap/fast tasks
-GEN_MODEL  = "llama-3.3-70b-versatile"    # answer generation
+FAST_MODEL = os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-20b")       # intent parsing, cheap/fast tasks
+GEN_MODEL  = os.getenv("GROQ_GEN_MODEL", "openai/gpt-oss-120b")    # answer generation
+
 
 _client = None
 
