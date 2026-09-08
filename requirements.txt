@@ -1,0 +1,6 @@
+groq
+qdrant-client
+FlagEmbedding
+python-dotenv
+pydantic
+torch
