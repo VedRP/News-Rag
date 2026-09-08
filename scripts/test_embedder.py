@@ -9,6 +9,10 @@ if str(root_dir) not in sys.path:
 
 from embeddings.embedder import embed_text
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+
 def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     a = np.array(vec1, dtype=np.float32)
     b = np.array(vec2, dtype=np.float32)
