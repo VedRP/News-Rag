@@ -10,6 +10,10 @@ if str(root_dir) not in sys.path:
 from vectorstore.qdrant_client import get_client, ensure_collection
 from ingestion.index_story import index_story
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+
 def main():
     seed_file = root_dir / "data" / "seed_stories.json"
     if not seed_file.exists():

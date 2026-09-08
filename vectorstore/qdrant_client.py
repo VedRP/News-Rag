@@ -6,14 +6,20 @@ from .schema import COLLECTION_NAME, VECTOR_SIZE, DISTANCE
 
 load_dotenv()
 
+_qdrant_client = None
+
 def get_client() -> QdrantClient:
-    target = os.getenv("QDRANT_URL", "http://localhost:6333")
-    if target.startswith("http://") or target.startswith("https://"):
-        return QdrantClient(url=target)
-    elif target == ":memory:":
-        return QdrantClient(location=":memory:")
-    else:
-        return QdrantClient(path=target)
+    global _qdrant_client
+    if _qdrant_client is None:
+        target = os.getenv("QDRANT_URL", "http://localhost:6333")
+        if target.startswith("http://") or target.startswith("https://"):
+            _qdrant_client = QdrantClient(url=target)
+        elif target == ":memory:":
+            _qdrant_client = QdrantClient(location=":memory:")
+        else:
+            _qdrant_client = QdrantClient(path=target)
+    return _qdrant_client
+
 
 def ensure_collection(client: QdrantClient) -> bool:
     """Ensures the collection exists. Returns True if created, False if already existed."""

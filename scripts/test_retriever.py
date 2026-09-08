@@ -8,6 +8,10 @@ if str(root_dir) not in sys.path:
 
 from retrieval.retriever import retrieve
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+
 def main():
     fake_intent = {
         "topic": "cricket",
