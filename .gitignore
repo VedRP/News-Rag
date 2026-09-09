@@ -44,3 +44,7 @@ data/cache/
 .idea/
 *.swp
 *.swo
+
+# Raw newspaper PDFs
+News/*.pdf
+news/*.pdf

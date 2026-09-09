@@ -4,3 +4,4 @@ FlagEmbedding
 python-dotenv
 pydantic
 torch
+pymupdf
