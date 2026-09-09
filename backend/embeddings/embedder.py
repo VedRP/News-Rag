@@ -1,5 +1,6 @@
 import os
 from typing import List
+# pyrefly: ignore [missing-import]
 import torch
 from FlagEmbedding import BGEM3FlagModel
 
