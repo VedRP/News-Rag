@@ -22,6 +22,27 @@ NOISE_LINE_PATTERNS = [
 
 COMPILED_NOISE = [re.compile(p, re.IGNORECASE | re.MULTILINE) for p in NOISE_LINE_PATTERNS]
 
+# PDF text extraction often yields typographic ligatures (e.g. "ﬁnd" instead of
+# "find"), which breaks plain-text keyword matching in metadata.py's topic detection.
+LIGATURE_MAP = {
+    "ﬀ": "ff",
+    "ﬁ": "fi",
+    "ﬂ": "fl",
+    "ﬃ": "ffi",
+    "ﬄ": "ffl",
+    "ﬅ": "st",
+    "ﬆ": "st",
+}
+CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+def normalize_glyphs(text: str) -> str:
+    """Replaces PDF ligature glyphs with plain ASCII and strips stray control characters."""
+    if not text:
+        return text
+    for lig, plain in LIGATURE_MAP.items():
+        text = text.replace(lig, plain)
+    return CONTROL_CHAR_RE.sub("", text)
+
 def is_boilerplate_block(text: str) -> bool:
     """Checks if a whole block is boilerplate publishing noise."""
     stripped = text.strip()
@@ -51,7 +72,9 @@ def clean_text(text: str) -> str:
     """
     if not text:
         return ""
-    
+
+    text = normalize_glyphs(text)
+
     # 1. Remove noise lines
     lines = text.split("\n")
     cleaned_lines = []
