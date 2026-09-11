@@ -3,6 +3,37 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 import pymupdf
 
+# Above this fraction of non-text characters in the extracted text, treat the PDF as
+# having broken font encoding rather than genuine content (see GarbledPDFTextError).
+# Real newspaper PDFs we've tested land under 1%; a broken one we hit was ~89%.
+GARBLED_TEXT_RATIO_THRESHOLD = 0.3
+MIN_CHARS_FOR_GARBLE_CHECK = 200
+
+
+class GarbledPDFTextError(Exception):
+    """
+    Raised when a PDF's text layer extracts as mostly non-text characters.
+
+    This happens when a PDF embeds subsetted CID fonts (Type0, Identity-H encoding)
+    without a usable ToUnicode CMap: the PDF renders correctly visually, but there is
+    no way to recover which Unicode character each glyph represents, so extracted
+    "text" is essentially scrambled. This is NOT the same as a scanned/image-only PDF
+    (which task.md separately calls out as needing OCR) -- there IS a text layer here,
+    it's just unrecoverable without the font's original CMap. There is no reliable
+    automatic fix; the PDF needs to be re-exported/re-sourced with proper text encoding.
+    """
+
+
+def _non_text_char_ratio(text: str) -> float:
+    if not text:
+        return 0.0
+    non_text = sum(
+        1 for ch in text
+        if not (ch.isalnum() or ch.isspace() or ch in ".,;:!?-‘’“”–—'\"()[]/%&$@#")
+    )
+    return non_text / len(text)
+
+
 @dataclass
 class ExtractedBlock:
     """A spatial text block from a PDF page."""
@@ -79,6 +110,18 @@ def extract_pdf(pdf_path: str) -> ExtractedDocument:
         )
     
     doc.close()
+
+    combined_text = "".join(p.raw_text for p in pages)
+    if len(combined_text) >= MIN_CHARS_FOR_GARBLE_CHECK:
+        ratio = _non_text_char_ratio(combined_text)
+        if ratio > GARBLED_TEXT_RATIO_THRESHOLD:
+            raise GarbledPDFTextError(
+                f"{filename}: extracted text is {ratio:.0%} non-text characters "
+                f"(threshold {GARBLED_TEXT_RATIO_THRESHOLD:.0%}). This PDF likely has "
+                "subsetted fonts without a usable ToUnicode CMap, so its text layer "
+                "cannot be reliably recovered. Try a different export/source of this PDF."
+            )
+
     return ExtractedDocument(
         source_filename=filename,
         file_path=pdf_path,

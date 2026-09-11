@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+from backend.ingestion.extract import GarbledPDFTextError
 from backend.ingestion.pipeline import process_newspaper_pdf
 from backend.ingestion.index import index_chunks
 from backend.retrieval.qdrant_client import get_client, reset_collection
@@ -71,7 +72,12 @@ def offer_indexing() -> None:
         print("[OK] Collection cleared.")
 
     print(f"Ingesting {os.path.basename(pdf_path)} (up to {max_pages} pages)...")
-    chunks = process_newspaper_pdf(pdf_path, max_pages=max_pages)
+    try:
+        chunks = process_newspaper_pdf(pdf_path, max_pages=max_pages)
+    except GarbledPDFTextError as e:
+        print(f"[SKIPPED] {e}")
+        print("Pick a different PDF, or choose 0 to use whatever's already indexed.\n")
+        return
     index_chunks(chunks)
     print(f"[OK] Indexed {len(chunks)} chunks.\n")
 
