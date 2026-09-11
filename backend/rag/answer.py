@@ -51,7 +51,7 @@ def retrieve_chunks(
     return chunks
 
 
-def _generate_grounded_answer(
+def generate_grounded_answer(
     question: str,
     retrieved_chunks: List[Dict[str, Any]],
     min_similarity: float,
@@ -108,7 +108,7 @@ def answer_question(
     Question -> Qdrant vector retrieval -> Grounding verification -> LLM response with citations.
     """
     retrieved_chunks = retrieve_chunks(question, top_k=top_k)
-    return _generate_grounded_answer(question, retrieved_chunks, min_similarity, model)
+    return generate_grounded_answer(question, retrieved_chunks, min_similarity, model)
 
 
 def answer_structured_question(
@@ -157,4 +157,4 @@ def answer_structured_question(
     if qdrant_filter is not None and not retrieved_chunks:
         retrieved_chunks = retrieve_chunks(search_query, top_k=top_k, qdrant_filter=None)
 
-    return _generate_grounded_answer(search_query, retrieved_chunks, min_similarity, model)
+    return generate_grounded_answer(search_query, retrieved_chunks, min_similarity, model)
