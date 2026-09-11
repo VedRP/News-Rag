@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Optional
 from backend.llm.prompts.intent_parser import INTENT_TAXONOMY, TOPIC_TAXONOMY
 
 VALID_TIME_VALUES = {"today", "latest", "this_week"}
+VALID_REFERENCE_TYPES = {"story_number", "current_story", "none"}
 LOW_CONFIDENCE_THRESHOLD = 0.5
+NULL_REFERENCE = {"type": "none", "value": None}
 
 
 @dataclass
@@ -16,6 +18,7 @@ class ValidatedIntent:
     location: Optional[Dict[str, Optional[str]]]
     time: Optional[str]
     language: Optional[str]
+    reference: Dict[str, Any]
     raw_query_for_search: str
     confidence: float
     errors: List[str] = field(default_factory=list)
@@ -39,6 +42,29 @@ def _clean_location(raw_location: Any, errors: List[str]) -> Optional[Dict[str, 
     if not any(cleaned.values()):
         return None
     return cleaned
+
+
+def _clean_reference(raw_reference: Any, errors: List[str]) -> Dict[str, Any]:
+    if raw_reference is None:
+        return dict(NULL_REFERENCE)
+    if not isinstance(raw_reference, dict):
+        errors.append(f"reference was not an object, dropped: {raw_reference!r}")
+        return dict(NULL_REFERENCE)
+
+    ref_type = raw_reference.get("type")
+    if ref_type not in VALID_REFERENCE_TYPES:
+        errors.append(f"reference.type not recognized, dropped: {ref_type!r}")
+        return dict(NULL_REFERENCE)
+
+    value = raw_reference.get("value")
+    if ref_type == "story_number":
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            errors.append(f"reference.value invalid for story_number, dropped: {value!r}")
+            return dict(NULL_REFERENCE)
+        return {"type": "story_number", "value": value}
+
+    # "current_story" and "none" never carry a value
+    return {"type": ref_type, "value": None}
 
 
 def validate_intent(parsed: Dict[str, Any]) -> ValidatedIntent:
@@ -68,6 +94,7 @@ def validate_intent(parsed: Dict[str, Any]) -> ValidatedIntent:
         topic = None
 
     location = _clean_location(parsed.get("location"), errors)
+    reference = _clean_reference(parsed.get("reference"), errors)
 
     time_value = parsed.get("time")
     if time_value is not None and time_value not in VALID_TIME_VALUES:
@@ -103,6 +130,7 @@ def validate_intent(parsed: Dict[str, Any]) -> ValidatedIntent:
         location=location,
         time=time_value,
         language=language,
+        reference=reference,
         raw_query_for_search=raw_query,
         confidence=confidence,
         errors=errors,
