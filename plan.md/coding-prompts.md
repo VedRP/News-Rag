@@ -1,6 +1,6 @@
 # IDE Coding Prompts — RAG + LLM Subsystem
 
-How to use this file: paste one prompt at a time into your IDE's AI assistant (Claude Code, Cursor, Copilot Chat, etc.), in order. Each prompt assumes the previous ones are already done and working. Don't skip ahead — the pipeline is intentionally built bottom-up so you can test each layer in isolation before wiring it together. Where a prompt references `plan.md`, attach/paste that file alongside so the assistant has the exact schemas and prompt text to use instead of inventing its own.
+How to use this file: paste one prompt at a time into your IDE's AI assistant (Cursor, Copilot Chat, etc.), in order. Each prompt assumes the previous ones are already done and working. Don't skip ahead — the pipeline is intentionally built bottom-up so you can test each layer in isolation before wiring it together. Where a prompt references `plan.md`, attach/paste that file alongside so the assistant has the exact schemas and prompt text to use instead of inventing its own.
 
 ---
 

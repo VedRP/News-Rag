@@ -1,8 +1,8 @@
-# task.md — Claude Code Build Instructions
+# task.md — Build Instructions
 
 **Read `context.md` in this repo before doing anything else.** It is the source of truth for architecture, phase order, tech stack, schemas, and non-goals. If anything in this file seems to conflict with `context.md`, stop and ask rather than guessing which one wins.
 
-This file breaks the project into phase-sized tasks for Claude Code to execute one at a time, inside a real terminal/IDE session with file system and bash access.
+This file breaks the project into phase-sized tasks for the AI assistant to execute one at a time, inside a real terminal/IDE session with file system and bash access.
 
 ---
 
@@ -136,7 +136,7 @@ If you are ever unsure whether something requires my input under these rules, er
 **Before writing code:**
 - Confirm faster-whisper is not yet installed/downloaded; tell me model size options (tiny/base/small/etc.) and approximate download sizes, and let me choose before downloading.
 - Once we reach the TTS half of this phase, propose 2–3 local multilingual TTS candidates (e.g. Piper, Coqui XTTS, an Indic-focused model) with a short tradeoff summary (language coverage, quality, install complexity, hardware needs) and ask me to pick rather than unilaterally choosing and installing one.
-- Confirm microphone/speaker access works in this environment before building around it — if Claude Code is running somewhere without local audio device access, flag that immediately rather than trying to build around a missing capability.
+- Confirm microphone/speaker access works in this environment before building around it — if the assistant is running somewhere without local audio device access, flag that immediately rather than trying to build around a missing capability.
 
 **Build:**
 - `backend/voice/stt.py` — wraps faster-whisper, mic input → text.
