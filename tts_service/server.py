@@ -77,10 +77,14 @@ def _get_model():
         # Import here, not at module load time: this is the slow (~model download +
         # torch init) step, and we want the server to start and answer /health even
         # if the model isn't loaded yet.
-        from huggingface_hub import login
         from transformers import AutoModel
 
-        login(token=hf_token)
+        # Setting the env var (rather than calling huggingface_hub.login(), which
+        # does an extra `whoami` network round-trip to validate the token) is enough
+        # for from_pretrained()'s own authenticated requests -- and avoids that
+        # round-trip failing outright when HF_HUB_OFFLINE=1 is set (all files
+        # already cached locally, no network needed at all).
+        os.environ.setdefault("HF_TOKEN", hf_token)
         _model = AutoModel.from_pretrained(MODEL_REPO_ID, trust_remote_code=True)
     return _model
 

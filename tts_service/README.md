@@ -41,33 +41,52 @@ winget install --id Gyan.FFmpeg.Shared
 ## Running
 
 ```powershell
-# Make sure the FFmpeg shared bin/ dir is on PATH for this shell first (see setup
-# step 4), then:
-cd tts_service
-.\.venv\Scripts\python.exe -m uvicorn server:app --port 8100
+powershell -File tts_service\start_server.ps1
 ```
+
+This handles the FFmpeg-shared-on-PATH and offline-mode setup below automatically.
+(Equivalent manual command, if you need to run it differently: `cd tts_service`
+then `.\.venv\Scripts\python.exe -m uvicorn server:app --port 8100`, after putting
+the FFmpeg shared `bin/` dir on PATH and setting the offline env vars yourself.)
 
 `GET /health` should return `{"status": "ok"}` almost immediately. The model itself
 (and the gated weight download, first run only) only loads on the first
 `POST /synthesize` call, not at startup -- so the server can be "up" before the
 model is ready to actually generate anything.
 
-## A third fix, already applied in server.py
+**After the first successful run** (model + vocoder weights fully cached locally),
+set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` before starting the server.
+This isn't just a speed optimization -- during development, an unrelated
+"check-for-updates" network call (made even when using cached files) stalled on a
+flaky connection and hung the whole request indefinitely with zero CPU usage. Going
+offline once everything's cached avoids that failure mode entirely, not just the
+latency of the check.
 
-`f5_tts` (IndicF5's base architecture) wraps its vocoder in `torch.compile()`
-internally. With this project's torch version (much newer than what `f5_tts` was
-tested against), that hits a dynamo tracer bug. `server.py` sets
-`TORCHDYNAMO_DISABLE=1` before importing torch, which makes `torch.compile(fn)` a
-no-op (falls back to eager execution) rather than patching the vendored library code.
+## Two more fixes, already applied in server.py
 
-## Known limitation: CPU inference is slow
+- `f5_tts` (IndicF5's base architecture) wraps its vocoder in `torch.compile()`
+  internally. With this project's torch version (much newer than what `f5_tts` was
+  tested against), that hits a dynamo tracer bug. `server.py` sets
+  `TORCHDYNAMO_DISABLE=1` before importing torch, which makes `torch.compile(fn)` a
+  no-op (falls back to eager execution) rather than patching vendored library code.
+- Don't call `huggingface_hub.login(token=...)` -- it does an extra `whoami` network
+  round-trip just to validate the token, which (a) isn't needed since
+  `from_pretrained()` already authenticates its own requests via the `HF_TOKEN` env
+  var, and (b) hard-fails under `HF_HUB_OFFLINE=1`. `server.py` just sets the env var.
 
-This machine has no GPU. IndicF5 is a flow-matching/diffusion-style TTS model
-(~0.4B params, ~32 sampling steps per call) -- on CPU, a single short sentence can
-take several minutes. That's expected, not a bug. If interactive-speed testing
-matters more than not needing a GPU, that tradeoff is worth revisiting later
-(smaller model, fewer sampling steps if IndicF5 exposes that, or running on a
-machine/cloud instance with a GPU).
+## Known limitation: CPU inference is slow (measured, not estimated)
+
+This machine has no GPU. IndicF5 is a flow-matching TTS model (~0.4B params, ~32
+sampling steps) -- measured **~4.5 minutes for one short Hindi sentence** with a
+warm (already-loaded) model; the very first call after server startup is slower
+still (model load + weight materialization on top of that). This is expected, not
+a bug -- but it means:
+- Any HTTP client calling `/synthesize` needs a long timeout (`backend/voice/tts.py`
+  uses 600s).
+- Real-time or near-real-time voice interaction isn't practical on this hardware as-is.
+  If that matters more than avoiding a GPU dependency, revisit later (GPU, a smaller/
+  faster model, or fewer sampling steps if IndicF5 exposes that as a parameter --
+  it currently doesn't, per its `model.py`'s `forward()` signature).
 
 ## Reference audio
 

@@ -18,6 +18,11 @@ import requests
 
 TTS_SERVICE_URL = os.getenv("TTS_SERVICE_URL", "http://localhost:8100")
 
+# IndicF5 is a flow-matching TTS model (~32 sampling steps) running on CPU (no GPU
+# on this machine) -- measured ~4.5 minutes for a single short sentence with a warm
+# model. A short timeout here would abort a real, successfully-completing request.
+SYNTHESIZE_TIMEOUT_SECONDS = 600
+
 
 class TTSServiceUnavailable(Exception):
     """Raised when the local IndicF5 service isn't reachable or isn't ready."""
@@ -42,7 +47,7 @@ def synthesize(text: str, language: str = "hindi") -> bytes:
         resp = requests.post(
             f"{TTS_SERVICE_URL}/synthesize",
             json={"text": text, "language": language},
-            timeout=60,
+            timeout=SYNTHESIZE_TIMEOUT_SECONDS,
         )
     except requests.RequestException as e:
         raise TTSServiceUnavailable(

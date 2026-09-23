@@ -109,7 +109,12 @@ class VoiceTestApp:
                 answer_text = self._ask_assistant(utterance)
                 self.root.after(0, self._set_answer_text, answer_text)
 
-            self.root.after(0, self.status_var.set, "Synthesizing speech...")
+            self.root.after(
+                0,
+                self.status_var.set,
+                "Synthesizing speech... this runs on CPU and can take several minutes "
+                "(measured ~4-5 min per short sentence). Not frozen -- just slow.",
+            )
             audio_bytes = synthesize(answer_text, language=language)
             self._play_audio(audio_bytes)
             self.root.after(0, self.status_var.set, "Done.")
