@@ -8,6 +8,31 @@ VALID_REFERENCE_TYPES = {"story_number", "current_story", "none"}
 LOW_CONFIDENCE_THRESHOLD = 0.5
 NULL_REFERENCE = {"type": "none", "value": None}
 
+# Phase 6 officially supports these three languages (task.md: "start with 2-3", user
+# confirmed English + Hindi + Marathi). context.md Section 11's full 10-language target
+# list is the long-term goal; adding a language here is the only change needed to
+# support it once backend/conversation/phrases.py has translated templates for it too.
+SUPPORTED_LANGUAGES = {"english", "hindi", "marathi"}
+
+# Aliases the intent parser might plausibly emit for a supported language (ISO codes,
+# native/romanized spellings) that should still resolve correctly.
+_LANGUAGE_ALIASES = {
+    "en": "english", "eng": "english", "english": "english",
+    "hi": "hindi", "hin": "hindi", "hindi": "hindi",
+    "mr": "marathi", "mar": "marathi", "marathi": "marathi",
+}
+
+
+def normalize_language(raw_language: Optional[str]) -> Optional[str]:
+    """
+    Maps a free-text language string (from the intent parser) to a canonical
+    supported-language name ("english"/"hindi"/"marathi"), or None if it's missing,
+    unrecognized, or names a language Phase 6 doesn't support yet (e.g. "tamil").
+    """
+    if not raw_language or not isinstance(raw_language, str):
+        return None
+    return _LANGUAGE_ALIASES.get(raw_language.strip().lower())
+
 
 @dataclass
 class ValidatedIntent:
