@@ -10,6 +10,7 @@ from .prompts import (
     format_retrieved_context,
     build_rag_user_prompt,
 )
+from backend.translation.translator import translate_answer
 
 SIMILARITY_THRESHOLD = 0.32
 
@@ -59,13 +60,24 @@ def generate_grounded_answer(
     model: str,
     target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> "RAGResult":
-    """Shared generation step used by both plain-question and structured-intent answering."""
+    """
+    Shared generation step used by both plain-question and structured-intent answering.
+
+    Generation always happens in English regardless of target_language: the LLM reasons
+    against English source chunks, which keeps grounding/citation fidelity as reliable as
+    Phases 3-5 already proved (see backend.rag.prompts and backend.translation.translator
+    for why). The English answer is then localized as a separate step via translate_answer().
+    """
     top_score = retrieved_chunks[0].get("_similarity_score", 0.0) if retrieved_chunks else 0.0
 
     if not retrieved_chunks or top_score < min_similarity:
+        insufficient_info_message = translate_answer(
+            "The provided newspaper sources do not contain sufficient information to answer this question.",
+            target_language,
+        )
         return RAGResult(
             question=question,
-            answer="The provided newspaper sources do not contain sufficient information to answer this question.",
+            answer=insufficient_info_message,
             citations=[],
             chunks_used=0,
             top_similarity=top_score,
@@ -84,12 +96,13 @@ def generate_grounded_answer(
     context_str = format_retrieved_context(retrieved_chunks)
     user_prompt = build_rag_user_prompt(question, context_str)
 
-    answer_text = chat(
-        system_prompt=build_grounded_system_prompt(target_language),
+    answer_text_en = chat(
+        system_prompt=build_grounded_system_prompt(DEFAULT_TARGET_LANGUAGE),
         user_prompt=user_prompt,
         model=model,
         temperature=0.2,
     )
+    answer_text = translate_answer(answer_text_en, target_language)
 
     return RAGResult(
         question=question,
