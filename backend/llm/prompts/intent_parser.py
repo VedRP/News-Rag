@@ -77,7 +77,6 @@ def build_user_prompt(utterance: str, session_state: Optional[Dict[str, Any]] = 
 def parse_intent(
     utterance: str,
     session_state: Optional[Dict[str, Any]] = None,
-    model: str | None = None,
 ) -> Dict[str, Any]:
     """
     Calls the LLM to convert a raw user utterance into the structured intent schema above.
@@ -88,12 +87,12 @@ def parse_intent(
     backend.backend_validation.validate_intent() before using it to build a retrieval filter.
     """
     import json
-    from backend.llm.groq_client import chat, FAST_MODEL
+    from backend.llm.client import chat
 
     raw = chat(
         system_prompt=INTENT_SYSTEM_PROMPT,
         user_prompt=build_user_prompt(utterance, session_state),
-        model=model or FAST_MODEL,
+        role="fast",
         temperature=0.0,
         json_mode=True,
     )

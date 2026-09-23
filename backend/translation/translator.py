@@ -91,13 +91,13 @@ text, nothing else -- no explanation, no quotes, no markdown."""
 
 
 def _translate_via_llm(text: str, target_language: str) -> str:
-    from backend.llm.groq_client import chat, FAST_MODEL
+    from backend.llm.client import chat
 
     def translate_segment(segment: str) -> str:
         return chat(
             system_prompt=TRANSLATION_SYSTEM_PROMPT.format(language=target_language.title()),
             user_prompt=segment,
-            model=FAST_MODEL,
+            role="fast",
             temperature=0.0,
         )
 

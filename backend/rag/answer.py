@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 from qdrant_client.models import Filter
 from backend.embeddings.embedder import embed_text
 from backend.retrieval.qdrant_client import get_client, ensure_collection, COLLECTION_NAME
-from backend.llm.groq_client import chat, GEN_MODEL
+from backend.llm.client import chat
 from .prompts import (
     DEFAULT_TARGET_LANGUAGE,
     build_grounded_system_prompt,
@@ -57,7 +57,6 @@ def generate_grounded_answer(
     question: str,
     retrieved_chunks: List[Dict[str, Any]],
     min_similarity: float,
-    model: str,
     target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> "RAGResult":
     """
@@ -99,7 +98,7 @@ def generate_grounded_answer(
     answer_text_en = chat(
         system_prompt=build_grounded_system_prompt(DEFAULT_TARGET_LANGUAGE),
         user_prompt=user_prompt,
-        model=model,
+        role="gen",
         temperature=0.2,
     )
     answer_text = translate_answer(answer_text_en, target_language)
@@ -116,7 +115,6 @@ def answer_question(
     question: str,
     top_k: int = 4,
     min_similarity: float = SIMILARITY_THRESHOLD,
-    model: str = GEN_MODEL,
     target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> RAGResult:
     """
@@ -124,14 +122,13 @@ def answer_question(
     Question -> Qdrant vector retrieval -> Grounding verification -> LLM response with citations.
     """
     retrieved_chunks = retrieve_chunks(question, top_k=top_k)
-    return generate_grounded_answer(question, retrieved_chunks, min_similarity, model, target_language)
+    return generate_grounded_answer(question, retrieved_chunks, min_similarity, target_language)
 
 
 def answer_structured_question(
     utterance: str,
     top_k: int = 4,
     min_similarity: float = SIMILARITY_THRESHOLD,
-    model: str = GEN_MODEL,
     target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> RAGResult:
     """
@@ -174,4 +171,4 @@ def answer_structured_question(
     if qdrant_filter is not None and not retrieved_chunks:
         retrieved_chunks = retrieve_chunks(search_query, top_k=top_k, qdrant_filter=None)
 
-    return generate_grounded_answer(search_query, retrieved_chunks, min_similarity, model, target_language)
+    return generate_grounded_answer(search_query, retrieved_chunks, min_similarity, target_language)

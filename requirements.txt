@@ -1,4 +1,5 @@
 groq
+google-genai
 qdrant-client
 FlagEmbedding
 python-dotenv

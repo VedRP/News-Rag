@@ -1,4 +1,10 @@
-"""LLM integration package."""
-from .groq_client import chat, get_client, FAST_MODEL, GEN_MODEL
+"""
+LLM integration package.
 
-__all__ = ["chat", "get_client", "FAST_MODEL", "GEN_MODEL"]
+backend.llm.client.chat() is the canonical entry point -- provider-agnostic, with
+automatic fallback across configured providers (see backend/llm/client.py). Prefer
+`from backend.llm.client import chat` over reaching into a specific provider module.
+"""
+from .client import chat
+
+__all__ = ["chat"]

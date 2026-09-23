@@ -136,7 +136,6 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
             validated.raw_query_for_search or utterance,
             [target],
             SIMILARITY_THRESHOLD,
-            _default_model(),
             target_language=state.language,
         )
         citation = gen.citations[0] if gen.citations else None
@@ -167,9 +166,3 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
     result = TurnResult(utterance=utterance, kind="news_listing", spoken_answer=spoken, stories=numbered)
     record_turn(state, utterance, result.spoken_answer)
     return result
-
-
-def _default_model() -> str:
-    from backend.llm.groq_client import GEN_MODEL
-
-    return GEN_MODEL
