@@ -11,7 +11,8 @@ backend.conversation.state's helpers.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from backend.backend_validation import validate_intent
+from backend.backend_validation import SUPPORTED_LANGUAGES, normalize_language, validate_intent
+from backend.conversation.phrases import phrase
 from backend.conversation.state import (
     SessionState,
     find_story_by_number,
@@ -36,11 +37,19 @@ class TurnResult:
     citation: Optional[Dict[str, Any]] = None
 
 
-def _format_story_listing(numbered_stories: List[Dict[str, Any]]) -> str:
+def _format_story_listing(numbered_stories: List[Dict[str, Any]], language: str) -> str:
+    """
+    Formats the numbered listing header/footer in the session's language, but leaves
+    each story's title/snippet as the raw source excerpt (source text is whatever
+    language it was published in -- translating quoted evidence risks introducing
+    inaccuracies outside grounded generation's hallucination-control rules). The
+    follow-up-driven detail answers (story_detail) are the ones that are actually
+    LLM-translated into the target language.
+    """
     if not numbered_stories:
-        return "I couldn't find any newspaper stories matching that."
+        return phrase(language, "no_stories")
 
-    lines = [f"Here are {len(numbered_stories)} stories:"]
+    lines = [phrase(language, "listing_header", n=len(numbered_stories))]
     for story in numbered_stories:
         snippet = (story.get("text") or "").strip().replace("\n", " ")
         if len(snippet) > 160:
@@ -51,7 +60,7 @@ def _format_story_listing(numbered_stories: List[Dict[str, Any]]) -> str:
             f"{story['number']}. {story.get('title', 'Untitled')} -- {snippet} "
             f"[Source: {source}, Page {page}]"
         )
-    lines.append("Ask \"tell me more about number N\" for details on any of these.")
+    lines.append(phrase(language, "listing_footer"))
     return "\n".join(lines)
 
 
@@ -78,26 +87,34 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
     if validated.intent == "unclear" or (
         not validated.is_actionable and validated.reference.get("type") == "none"
     ):
-        return _clarify(
-            utterance,
-            "I couldn't confidently understand that. Could you rephrase it, e.g. with a "
-            "topic/location, or a story number to follow up on?",
-            state,
-        )
+        return _clarify(utterance, phrase(state.language, "clarify"), state)
 
-    if validated.intent == "end":
-        result = TurnResult(utterance=utterance, kind="end", spoken_answer="Ending the conversation. Goodbye!")
+    requested_language = normalize_language(validated.language) if validated.language else None
+
+    if validated.intent == "change_language":
+        if requested_language:
+            state.language = requested_language
+            message = phrase(state.language, "language_ack", language=state.language.title())
+        else:
+            message = phrase(
+                state.language,
+                "language_unsupported",
+                language=validated.language or "that",
+                supported=", ".join(sorted(SUPPORTED_LANGUAGES)),
+                current=state.language,
+            )
+        result = TurnResult(utterance=utterance, kind="language_ack", spoken_answer=message)
         record_turn(state, utterance, result.spoken_answer)
         return result
 
-    if validated.intent == "change_language":
-        if validated.language:
-            state.language = validated.language
-        message = (
-            f"Noted -- I've set your preferred language to \"{state.language}\". "
-            "(Responses will actually switch language starting in Phase 6.)"
-        )
-        result = TurnResult(utterance=utterance, kind="language_ack", spoken_answer=message)
+    # A non-language-switch turn can still name a language (e.g. "Marathi mein cricket
+    # news batao" -- context.md Section 9's own example): honor it for this turn's
+    # generation and carry it forward, without requiring a separate "change to X" turn.
+    if requested_language:
+        state.language = requested_language
+
+    if validated.intent == "end":
+        result = TurnResult(utterance=utterance, kind="end", spoken_answer=phrase(state.language, "end"))
         record_turn(state, utterance, result.spoken_answer)
         return result
 
@@ -105,7 +122,7 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
         if state.conversation_history:
             message = state.conversation_history[-1]["answer"]
         else:
-            message = "There's nothing to repeat yet -- ask me for some news first."
+            message = phrase(state.language, "nothing_to_repeat")
         result = TurnResult(utterance=utterance, kind="repeat", spoken_answer=message)
         record_turn(state, utterance, result.spoken_answer)
         return result
@@ -113,14 +130,14 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
     if validated.intent in ("follow_up", "more_details") or validated.reference.get("type") != "none":
         target = _resolve_reference(state, validated.reference)
         if target is None:
-            return _clarify(
-                utterance,
-                "Which story are you asking about? Try \"number 2\" or ask for news first.",
-                state,
-            )
+            return _clarify(utterance, phrase(state.language, "clarify_reference"), state)
         state.current_story = target
         gen = generate_grounded_answer(
-            validated.raw_query_for_search or utterance, [target], SIMILARITY_THRESHOLD, _default_model()
+            validated.raw_query_for_search or utterance,
+            [target],
+            SIMILARITY_THRESHOLD,
+            _default_model(),
+            target_language=state.language,
         )
         citation = gen.citations[0] if gen.citations else None
         result = TurnResult(
@@ -130,7 +147,7 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
         return result
 
     if validated.intent in NOT_YET_SUPPORTED_INTENTS:
-        message = f"The \"{validated.intent}\" intent isn't implemented yet -- ask me for news instead."
+        message = phrase(state.language, "unsupported_intent", intent=validated.intent)
         result = TurnResult(utterance=utterance, kind="unsupported", spoken_answer=message)
         record_turn(state, utterance, result.spoken_answer)
         return result
@@ -146,7 +163,7 @@ def handle_turn(state: SessionState, utterance: str, top_k: int = 5) -> TurnResu
     if validated.topic:
         state.current_topic = validated.topic
 
-    spoken = _format_story_listing(numbered)
+    spoken = _format_story_listing(numbered, state.language)
     result = TurnResult(utterance=utterance, kind="news_listing", spoken_answer=spoken, stories=numbered)
     record_turn(state, utterance, result.spoken_answer)
     return result
