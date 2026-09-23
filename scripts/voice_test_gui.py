@@ -75,6 +75,39 @@ class VoiceTestApp:
         ttk.Label(root, textvariable=self.status_var, padding=(10, 4), relief=tk.SUNKEN).pack(fill=tk.X)
 
         self._refresh_service_status()
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """
+        Pre-initializes the Qdrant client, the BGE-M3 embedding model, and the LLM
+        router's HTTP/SSL setup on the MAIN thread, before any background-thread work
+        happens. Found the hard way: the exact same handle_turn() call that completes
+        in seconds when run directly hung indefinitely when its first invocation (and
+        therefore each client's first-ever network/SSL init) happened inside a
+        background threading.Thread here -- a known class of Windows issue with
+        first-use SSL context setup off the main thread. Warming up here avoids ever
+        hitting that path from a background thread.
+        """
+        self.status_var.set("Warming up (loading embedding model, connecting to Qdrant)...")
+        self.root.update()
+        try:
+            from backend.embeddings.embedder import get_model as get_embedding_model
+            from backend.retrieval.qdrant_client import ensure_collection, get_client
+
+            get_embedding_model()
+            ensure_collection(get_client())
+        except Exception as e:
+            self.status_var.set(f"Warm-up failed: {type(e).__name__}: {e}")
+            return
+
+        try:
+            from backend.llm.client import chat
+
+            chat("You are a test.", "Say OK.", role="fast", temperature=0.0, max_tokens=5)
+        except Exception:
+            pass  # Non-fatal here: "Speak this text" mode doesn't need an LLM at all.
+
+        self.status_var.set("Ready.")
 
     def _refresh_service_status(self) -> None:
         available = is_available()
