@@ -5,7 +5,8 @@ from backend.embeddings.embedder import embed_text
 from backend.retrieval.qdrant_client import get_client, ensure_collection, COLLECTION_NAME
 from backend.llm.groq_client import chat, GEN_MODEL
 from .prompts import (
-    GROUNDED_RAG_SYSTEM_PROMPT,
+    DEFAULT_TARGET_LANGUAGE,
+    build_grounded_system_prompt,
     format_retrieved_context,
     build_rag_user_prompt,
 )
@@ -56,6 +57,7 @@ def generate_grounded_answer(
     retrieved_chunks: List[Dict[str, Any]],
     min_similarity: float,
     model: str,
+    target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> "RAGResult":
     """Shared generation step used by both plain-question and structured-intent answering."""
     top_score = retrieved_chunks[0].get("_similarity_score", 0.0) if retrieved_chunks else 0.0
@@ -83,7 +85,7 @@ def generate_grounded_answer(
     user_prompt = build_rag_user_prompt(question, context_str)
 
     answer_text = chat(
-        system_prompt=GROUNDED_RAG_SYSTEM_PROMPT,
+        system_prompt=build_grounded_system_prompt(target_language),
         user_prompt=user_prompt,
         model=model,
         temperature=0.2,
@@ -102,13 +104,14 @@ def answer_question(
     top_k: int = 4,
     min_similarity: float = SIMILARITY_THRESHOLD,
     model: str = GEN_MODEL,
+    target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> RAGResult:
     """
     End-to-end grounded RAG answering:
     Question -> Qdrant vector retrieval -> Grounding verification -> LLM response with citations.
     """
     retrieved_chunks = retrieve_chunks(question, top_k=top_k)
-    return generate_grounded_answer(question, retrieved_chunks, min_similarity, model)
+    return generate_grounded_answer(question, retrieved_chunks, min_similarity, model, target_language)
 
 
 def answer_structured_question(
@@ -116,6 +119,7 @@ def answer_structured_question(
     top_k: int = 4,
     min_similarity: float = SIMILARITY_THRESHOLD,
     model: str = GEN_MODEL,
+    target_language: str = DEFAULT_TARGET_LANGUAGE,
 ) -> RAGResult:
     """
     Phase 4 entry point: raw utterance -> intent parse -> validation -> metadata-filtered +
@@ -157,4 +161,4 @@ def answer_structured_question(
     if qdrant_filter is not None and not retrieved_chunks:
         retrieved_chunks = retrieve_chunks(search_query, top_k=top_k, qdrant_filter=None)
 
-    return generate_grounded_answer(search_query, retrieved_chunks, min_similarity, model)
+    return generate_grounded_answer(search_query, retrieved_chunks, min_similarity, model, target_language)
