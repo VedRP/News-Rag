@@ -1,1 +1,15 @@
-{}
+{
+  "_comment": "Reference audio for IndicF5 (voice-cloning TTS). All three languages currently reuse the same official AI4Bharat example clip + its exact documented transcript (from ai4bharat/IndicF5's model card usage example) -- their own example clones a Punjabi reference clip to speak Hindi text, confirming reference-clip language doesn't need to match output-text language. Swap in dedicated per-language clips later (see README.md) for more natural per-language prosody.",
+  "english": {
+    "audio_file": "official_ref_pan.wav",
+    "transcript": "ਭਹੰਪੀ ਵਿੱਚ ਸਮਾਰਕਾਂ ਦੇ ਭਵਨ ਨਿਰਮਾਣ ਕਲਾ ਦੇ ਵੇਰਵੇ ਗੁੰਝਲਦਾਰ ਅਤੇ ਹੈਰਾਨ ਕਰਨ ਵਾਲੇ ਹਨ, ਜੋ ਮੈਨੂੰ ਖੁਸ਼ ਕਰਦੇ ਹਨ।"
+  },
+  "hindi": {
+    "audio_file": "official_ref_pan.wav",
+    "transcript": "ਭਹੰਪੀ ਵਿੱਚ ਸਮਾਰਕਾਂ ਦੇ ਭਵਨ ਨਿਰਮਾਣ ਕਲਾ ਦੇ ਵੇਰਵੇ ਗੁੰਝਲਦਾਰ ਅਤੇ ਹੈਰਾਨ ਕਰਨ ਵਾਲੇ ਹਨ, ਜੋ ਮੈਨੂੰ ਖੁਸ਼ ਕਰਦੇ ਹਨ।"
+  },
+  "marathi": {
+    "audio_file": "official_ref_pan.wav",
+    "transcript": "ਭਹੰਪੀ ਵਿੱਚ ਸਮਾਰਕਾਂ ਦੇ ਭਵਨ ਨਿਰਮਾਣ ਕਲਾ ਦੇ ਵੇਰਵੇ ਗੁੰਝਲਦਾਰ ਅਤੇ ਹੈਰਾਨ ਕਰਨ ਵਾਲੇ ਹਨ, ਜੋ ਮੈਨੂੰ ਖੁਸ਼ ਕਰਦੇ ਹਨ।"
+  }
+}

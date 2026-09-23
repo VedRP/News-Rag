@@ -3,3 +3,11 @@ uvicorn[standard]
 python-dotenv
 huggingface_hub
 soundfile
+# IndicF5's own setup.py leaves transformers unbounded, but its requirements.txt
+# (not used by `pip install git+...`) pins transformers<4.50 -- unpinned, pip grabs
+# the latest (5.x), which hits a transformers/meta-device-loading incompatibility
+# with this model's custom code. Pin explicitly here too.
+transformers<4.50
+# torchaudio.load() needs this in recent torchaudio versions; not pulled in
+# automatically by IndicF5's own setup.py.
+torchcodec

@@ -17,6 +17,15 @@ Run: .venv\\Scripts\\python.exe -m uvicorn server:app --port 8100
 import io
 import json
 import os
+
+# f5_tts (IndicF5's base architecture) wraps its vocoder in torch.compile() internally.
+# With torch 2.14 (much newer than what f5_tts was developed/tested against) this hits
+# a dynamo tracer bug -- "Tensor on device cpu is not on the expected device meta!" --
+# inside vocos's mel-spectrogram window creation. Disabling dynamo globally makes
+# torch.compile(fn) a no-op (falls back to eager execution), sidestepping the bug
+# without patching vendored library code. Must be set before torch is imported.
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+
 from pathlib import Path
 from typing import Optional
 

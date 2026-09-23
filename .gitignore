@@ -52,3 +52,4 @@ news/*.pdf
 # TTS reference/output audio (large binaries, not source)
 tts_service/reference_audio/*.wav
 tts_service/output/
+tts_service/*.log
