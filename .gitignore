@@ -48,3 +48,7 @@ data/cache/
 # Raw newspaper PDFs
 News/*.pdf
 news/*.pdf
+
+# TTS reference/output audio (large binaries, not source)
+tts_service/reference_audio/*.wav
+tts_service/output/
