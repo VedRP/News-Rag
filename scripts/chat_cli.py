@@ -3,8 +3,10 @@ Interactive Phase 5 CLI -- talk to the conversational news assistant yourself.
 
 Run: python scripts/chat_cli.py
 
-On start, offers to (re-)index newspaper PDFs from News/ into Qdrant, then drops
-you into a "You: " loop. Try a flow like:
+On start, offers to (re-)fetch live news from newsdata.io into Qdrant (replacing
+the earlier PDF-based ingestion per later project direction -- see
+backend/ingestion/newsdata_pipeline.py), then drops you into a "You: " loop.
+Try a flow like:
 
     You: Give me politics news.
     (numbered list of stories comes back)
@@ -22,14 +24,13 @@ the assistant is tracking.
 """
 import sys
 import os
-import glob
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from backend.ingestion.extract import GarbledPDFTextError
-from backend.ingestion.pipeline import process_newspaper_pdf
+from backend.ingestion.newsdata_client import NewsDataAPIError
+from backend.ingestion.newsdata_pipeline import fetch_and_convert
 from backend.ingestion.index import index_chunks
 from backend.retrieval.qdrant_client import get_client, reset_collection
 from backend.conversation.state import new_session
@@ -37,31 +38,14 @@ from backend.conversation.pipeline import handle_turn
 
 
 def offer_indexing() -> None:
-    pdfs = sorted(glob.glob(os.path.join("News", "*.pdf")))
-    if not pdfs:
-        print("[No PDFs found in News/ -- running against whatever is already indexed in Qdrant.]")
+    choice = input("Fetch fresh news from newsdata.io? [Y/n]: ").strip().lower()
+    if choice == "n":
+        print("[Skipping fetch -- using whatever's already indexed in Qdrant.]\n")
         return
 
-    print("Newspaper PDFs found in News/:")
-    for i, p in enumerate(pdfs, 1):
-        print(f"  {i}. {os.path.basename(p)}")
-    print("  0. Skip -- use whatever's already indexed in Qdrant")
-
-    choice = input("Index which one? [1]: ").strip() or "1"
-    if choice == "0":
-        return
-    try:
-        idx = int(choice) - 1
-        pdf_path = pdfs[idx]
-    except (ValueError, IndexError):
-        print("Invalid choice, skipping indexing.")
-        return
-
-    max_pages_raw = input("How many pages to ingest? [10]: ").strip() or "10"
-    try:
-        max_pages = int(max_pages_raw)
-    except ValueError:
-        max_pages = 10
+    country = input("Country code(s), comma-separated (e.g. in,us) [in]: ").strip() or "in"
+    language = input("Language code(s), comma-separated (e.g. en,hi) [en]: ").strip() or "en"
+    category = input("Category(s), optional (e.g. politics,sports,technology) []: ").strip()
 
     clear_first = input(
         "Clear previously indexed data first, for a clean test run? [Y/n]: "
@@ -71,15 +55,25 @@ def offer_indexing() -> None:
         reset_collection(get_client())
         print("[OK] Collection cleared.")
 
-    print(f"Ingesting {os.path.basename(pdf_path)} (up to {max_pages} pages)...")
+    print("Fetching latest news from newsdata.io...")
     try:
-        chunks = process_newspaper_pdf(pdf_path, max_pages=max_pages)
-    except GarbledPDFTextError as e:
-        print(f"[SKIPPED] {e}")
-        print("Pick a different PDF, or choose 0 to use whatever's already indexed.\n")
+        chunks = fetch_and_convert(
+            country=[c.strip() for c in country.split(",") if c.strip()],
+            language=[l.strip() for l in language.split(",") if l.strip()],
+            category=[c.strip() for c in category.split(",") if c.strip()] or None,
+            size=10,
+        )
+    except (NewsDataAPIError, ValueError) as e:
+        print(f"[FAILED] {e}")
+        print("Continuing with whatever's already indexed in Qdrant.\n")
         return
+
+    if not chunks:
+        print("[No articles returned for that filter -- try different country/language/category.]\n")
+        return
+
     index_chunks(chunks)
-    print(f"[OK] Indexed {len(chunks)} chunks.\n")
+    print(f"[OK] Indexed {len(chunks)} articles.\n")
 
 
 def print_state(state) -> None:
