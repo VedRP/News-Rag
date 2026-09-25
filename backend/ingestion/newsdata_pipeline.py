@@ -13,14 +13,28 @@ from typing import Any, Dict, List, Optional
 
 from .newsdata_client import NewsArticle, fetch_latest_articles
 
+# newsdata.io returns plan-gated fields as a literal placeholder STRING (e.g.
+# "ONLY AVAILABLE IN PAID PLANS") rather than null/omitting them -- confirmed via a
+# live raw response. A naive `article.content or article.description or ...` fallback
+# picks this placeholder (it's a non-empty, truthy string) instead of ever falling
+# through to real data. Filter it out explicitly wherever we use a plan-gated field.
+_GATED_PLACEHOLDER_MARKER = "ONLY AVAILABLE IN"
+
+
+def _real_value(value: Optional[str]) -> Optional[str]:
+    if not value or _GATED_PLACEHOLDER_MARKER in value:
+        return None
+    return value
+
 
 def article_to_chunk(article: NewsArticle) -> Dict[str, Any]:
     """
     Maps one NewsArticle to our standard chunk dict. `text` prefers full `content`
-    (paid plans) and falls back to `description` (the only body text the free plan
-    provides) -- see newsdata_client.py's module docstring for that limitation.
+    (paid plans) and falls back to `description` (available on the free plan) --
+    see newsdata_client.py's module docstring, and _real_value() above for why a
+    naive truthiness check on `content` isn't enough to detect "not available".
     """
-    text = article.content or article.description or article.title or ""
+    text = _real_value(article.content) or _real_value(article.description) or article.title or ""
     date = (article.pub_date or "")[:10] or None  # "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DD"
 
     return {
