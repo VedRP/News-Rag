@@ -31,8 +31,13 @@ def index_chunks(chunks: List[Dict[str, Any]], batch_size: int = 16) -> int:
     points: List[PointStruct] = []
     
     for i, chunk in enumerate(chunks):
-        # Create deterministic UUID from source, page, and title
-        unique_key = f"{chunk.get('source', '')}:{chunk.get('page', 0)}:{chunk.get('title', '')}"
+        # API-sourced chunks (backend/ingestion/newsdata_pipeline.py) carry a real,
+        # guaranteed-unique article_id and no page number; PDF-sourced chunks have no
+        # article_id but a stable source+page+title. Prefer article_id when present.
+        if chunk.get("article_id"):
+            unique_key = f"article:{chunk['article_id']}"
+        else:
+            unique_key = f"{chunk.get('source', '')}:{chunk.get('page', 0)}:{chunk.get('title', '')}"
         point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, unique_key))
         
         points.append(
