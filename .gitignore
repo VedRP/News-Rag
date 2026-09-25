@@ -49,7 +49,7 @@ data/cache/
 News/*.pdf
 news/*.pdf
 
-# TTS reference/output audio (large binaries, not source)
-tts_service/reference_audio/*.wav
-tts_service/output/
-tts_service/*.log
+# Piper voice model weights (downloaded via `python -m piper.download_voices ...`,
+# not source -- see backend/voice/tts.py)
+backend/voice/piper_voices/*.onnx
+backend/voice/piper_voices/*.onnx.json

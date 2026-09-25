@@ -8,3 +8,7 @@ torch
 pymupdf
 argostranslate
 requests
+faster-whisper
+piper-tts
+sounddevice
+numpy
