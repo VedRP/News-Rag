@@ -1,4 +1,5 @@
 import uuid
+# pyrefly: ignore [missing-import]
 from qdrant_client.models import PointStruct
 from embeddings.embedder import embed_text
 from vectorstore.qdrant_client import get_client

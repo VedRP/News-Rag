@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
 
 def build_filter(intent: dict) -> Filter | None:
