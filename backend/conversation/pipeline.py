@@ -55,10 +55,16 @@ def _format_story_listing(numbered_stories: List[Dict[str, Any]], language: str)
         if len(snippet) > 160:
             snippet = snippet[:160].rsplit(" ", 1)[0] + "..."
         source = story.get("source", "Unknown Source")
-        page = story.get("page", "?")
+        # PDF-sourced stories have a page number; API-sourced ones (newsdata.io) don't.
+        if story.get("page") is not None:
+            locator = f", Page {story['page']}"
+        elif story.get("link"):
+            locator = f", Link: {story['link']}"
+        else:
+            locator = ""
         lines.append(
             f"{story['number']}. {story.get('title', 'Untitled')} -- {snippet} "
-            f"[Source: {source}, Page {page}]"
+            f"[Source: {source}{locator}]"
         )
     lines.append(phrase(language, "listing_footer"))
     return "\n".join(lines)

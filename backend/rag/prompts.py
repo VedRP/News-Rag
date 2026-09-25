@@ -34,7 +34,7 @@ def build_grounded_system_prompt(target_language: str = DEFAULT_TARGET_LANGUAGE)
 2. Do not invent facts, names, numbers, dates, or outcomes absent from retrieved context.
 3. If evidence is insufficient, say so plainly rather than guessing (e.g. "The provided newspaper sources do not contain sufficient information to answer this.") -- in the target response language below, not necessarily English.
 4. Distinguish confirmed facts from claims/reports; preserve source uncertainty where the source itself is uncertain (use phrases like "according to reports", "as reported by").
-5. Always cite the specific source newspaper and page number (e.g., "[Source: <source_file>, Page <page_number>]") for facts mentioned in your answer.
+5. Always cite the source for facts mentioned in your answer, using whatever locator the excerpt actually provides -- "[Source: <name>, Page <n>]" when a page number is given, "[Source: <name>, Link: <url>]" when a link is given instead, or just "[Source: <name>]" if neither is given. Never invent a page number or link that wasn't in the excerpt.
 6. Do NOT let your own pretrained knowledge override or supplement retrieved current information.
 
 ## Response Language
@@ -61,14 +61,21 @@ def format_retrieved_context(chunks: List[Dict[str, Any]]) -> str:
     formatted_pieces: List[str] = []
     for i, c in enumerate(chunks, 1):
         source = c.get("source", "Unknown Source")
-        page = c.get("page", "Unknown Page")
         date = c.get("date", "Unknown Date")
         title = c.get("title", "Untitled")
         text = c.get("text", "").strip()
 
+        # PDF-sourced chunks have a page number; API-sourced chunks (newsdata.io) don't
+        # but may have a link instead. Only show what's actually meaningful, so the LLM
+        # never parrots back a literal "Page: None" in its citation.
+        locator = f"Page: {c['page']}" if c.get("page") is not None else None
+        if not locator and c.get("link"):
+            locator = f"Link: {c['link']}"
+        locator_str = f" | {locator}" if locator else ""
+
         piece = (
             f"--- [ARTICLE EXCERPT #{i}] ---\n"
-            f"Source: {source} | Page: {page} | Date: {date}\n"
+            f"Source: {source}{locator_str} | Date: {date}\n"
             f"Headline: {title}\n\n"
             f"{text}\n"
         )
