@@ -14,6 +14,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from backend.backend_validation import normalize_language
 from backend.conversation.pipeline import handle_turn
 from backend.conversation.state import new_session
 from backend.voice import stt, tts
@@ -79,7 +80,7 @@ async def voice(audio: UploadFile = File(...), language: Optional[str] = Form(No
     audio_bytes = await audio.read()
 
     try:
-        text, _detected_language = stt.transcribe_bytes(audio_bytes, language=language)
+        text, detected_language = stt.transcribe_bytes(audio_bytes, language=language)
     except Exception:
         logger.exception("STT failed while transcribing uploaded audio.")
         raise HTTPException(status_code=500, detail="Internal error while transcribing audio.")
@@ -87,14 +88,23 @@ async def voice(audio: UploadFile = File(...), language: Optional[str] = Form(No
     if not text.strip():
         raise HTTPException(status_code=400, detail="Could not transcribe any speech from the uploaded audio.")
 
+    session = _get_session()
+    # Unless the caller explicitly forced a language, let whatever language the caller
+    # actually spoke in this turn drive the reply -- speaking Hindi should get a Hindi
+    # answer without a separate "change to Hindi" request.
+    if language is None:
+        spoken_language = normalize_language(detected_language)
+        if spoken_language:
+            session.language = spoken_language
+
     try:
-        result = handle_turn(_get_session(), text)
+        result = handle_turn(session, text)
     except Exception:
         logger.exception("handle_turn() raised an exception for transcribed text: %r", text)
         raise HTTPException(status_code=500, detail="Internal error while processing the message.")
 
     try:
-        answer_audio = tts.synthesize(result.spoken_answer, language=_get_session().language)
+        answer_audio = tts.synthesize(result.spoken_answer, language=session.language)
     except tts.VoiceNotAvailable as e:
         logger.exception("TTS voice unavailable.")
         raise HTTPException(status_code=500, detail=str(e))

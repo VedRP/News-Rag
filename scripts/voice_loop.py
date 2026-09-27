@@ -21,14 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+from backend.backend_validation import normalize_language
 from backend.conversation.pipeline import handle_turn
 from backend.conversation.state import new_session
 from backend.voice.stt import get_model as get_whisper_model, listen_and_transcribe
 from backend.voice.tts import VoiceNotAvailable, is_available as tts_is_available, synthesize
-
-# Maps our session language names to Whisper's ISO 639-1 codes, so STT can be
-# nudged toward the session's current language instead of always auto-detecting.
-WHISPER_LANGUAGE_CODES = {"english": "en", "hindi": "hi", "marathi": "mr"}
 
 
 def play_wav(wav_bytes: bytes) -> None:
@@ -63,8 +60,10 @@ def main() -> int:
         if pre in ("quit", "exit", "q"):
             break
 
-        whisper_lang = WHISPER_LANGUAGE_CODES.get(state.language)
-        text, detected_lang = listen_and_transcribe(language=whisper_lang)
+        # Always auto-detect (don't hint Whisper toward the session's current language) --
+        # so whichever language the user actually speaks in this turn drives the reply,
+        # rather than the system staying locked to whatever language it started in.
+        text, detected_lang = listen_and_transcribe(language=None)
         if not text.strip():
             print("(heard nothing, try again)\n")
             continue
@@ -72,6 +71,10 @@ def main() -> int:
         print(f"You said ({detected_lang}): {text}")
         if text.strip().lower() in ("quit", "exit"):
             break
+
+        spoken_language = normalize_language(detected_lang)
+        if spoken_language:
+            state.language = spoken_language
 
         result = handle_turn(state, text)
         print(f"Assistant [{result.kind}]: {result.spoken_answer}\n")
