@@ -12,3 +12,4 @@ faster-whisper
 piper-tts
 sounddevice
 numpy
+audioop-lts

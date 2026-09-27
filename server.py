@@ -10,13 +10,14 @@ import logging
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from backend.backend_validation import normalize_language
 from backend.conversation.pipeline import handle_turn
 from backend.conversation.state import new_session
+from backend.telephony.twilio_stream import handle_call as handle_twilio_call
 from backend.voice import stt, tts
 
 logging.basicConfig(level=logging.INFO)
@@ -122,3 +123,30 @@ async def voice(audio: UploadFile = File(...), language: Optional[str] = Form(No
             "X-Response-Kind": result.kind,
         },
     )
+
+
+@app.post("/twilio/voice")
+async def twilio_voice(request: Request) -> Response:
+    """
+    Twilio's "A call comes in" webhook -- it POSTs here when someone dials the
+    number, and expects TwiML back. <Connect><Stream> immediately hands the whole
+    call over to a bidirectional WebSocket (backend/telephony/twilio_stream.py),
+    rather than the usual one-shot request/response TwiML flow.
+
+    The stream URL is built from this request's own Host header rather than a
+    hardcoded config value, so it automatically points at whatever ngrok URL is
+    currently tunneling this server (ngrok forwards the original public Host
+    header through to us) -- no manual config needed each time ngrok restarts.
+    """
+    host = request.headers.get("host", request.url.hostname or "localhost")
+    stream_url = f"wss://{host}/twilio/stream"
+    twiml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<Response><Connect><Stream url=\"" + stream_url + "\" /></Connect></Response>"
+    )
+    return Response(content=twiml, media_type="text/xml")
+
+
+@app.websocket("/twilio/stream")
+async def twilio_stream(websocket: WebSocket) -> None:
+    await handle_twilio_call(websocket)
