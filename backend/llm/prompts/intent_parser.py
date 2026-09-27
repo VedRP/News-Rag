@@ -11,9 +11,10 @@ INTENT_TAXONOMY = [
 ]
 
 TOPIC_TAXONOMY = [
-    "cricket", "sports", "bollywood", "politics", "business", "finance",
-    "technology", "education", "science", "health", "automobile",
-    "lifestyle", "weather", "general",
+    "politics", "national", "international", "sports", "business", "finance",
+    "technology", "science", "health", "education", "entertainment", "lifestyle",
+    "automobile", "environment", "weather", "crime", "real_estate", "agriculture",
+    "travel", "culture", "local", "defence", "energy", "jobs", "general",
 ]
 
 INTENT_SYSTEM_PROMPT = """You are the natural-language-understanding module of a news assistant. \
@@ -30,7 +31,7 @@ nothing to reference: treat any reference-like language as unresolvable (referen
 ## Output schema
 {
   "intent": one of ["news", "weather", "repeat", "more_details", "follow_up", "change_language", "customize", "end", "unclear"],
-  "topic": one of ["cricket", "sports", "bollywood", "politics", "business", "finance", "technology", "education", "science", "health", "automobile", "lifestyle", "weather", "general"] or null,
+  "topic": one of ["politics", "national", "international", "sports", "business", "finance", "technology", "science", "health", "education", "entertainment", "lifestyle", "automobile", "environment", "weather", "crime", "real_estate", "agriculture", "travel", "culture", "local", "defence", "energy", "jobs", "general"] or null,
   "location": { "city": string|null, "state": string|null, "country": string|null } or null,
   "time": one of ["today", "latest", "this_week"] or null,
   "language": string or null,
@@ -60,6 +61,9 @@ nothing to reference: treat any reference-like language as unresolvable (referen
 10. "repeat" intent (e.g. "say that again", "repeat that") also uses reference = {"type": "current_story", "value": null} \
     when applicable, otherwise "none".
 11. Output must be a single JSON object only. No markdown fences, no explanation, no trailing text.
+12. "topic" must be one of the listed values -- map a more specific request to the closest broader \
+    category (e.g. "cricket news" -> topic: "sports", raw_query_for_search: "cricket"; "Bollywood news" \
+    -> topic: "entertainment", raw_query_for_search: "bollywood"). Never invent a topic value outside the list.
 """
 
 

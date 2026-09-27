@@ -111,10 +111,10 @@ def validate_intent(parsed: Dict[str, Any]) -> ValidatedIntent:
 
     topic = parsed.get("topic")
     if topic is not None and topic not in TOPIC_TAXONOMY:
-        # Not fatal: ingestion's own keyword-based topic tagger (backend/ingestion/metadata.py)
-        # produces some tags (e.g. "judiciary", "infrastructure") that aren't in context.md's
-        # canonical taxonomy. Drop the topic rather than filtering on a value that will never
-        # match stored data, but don't downgrade the whole parse to "unclear" over it.
+        # Not fatal: an LLM can occasionally drift outside the enum despite the prompt's
+        # constraint. Drop the topic rather than trusting an unrecognized value (which
+        # backend.retrieval.topic_mapping wouldn't know how to map to a real newsdata.io
+        # category anyway), but don't downgrade the whole parse to "unclear" over it.
         errors.append(f"topic not in taxonomy, dropped: {topic!r}")
         topic = None
 
