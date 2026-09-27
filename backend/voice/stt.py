@@ -6,6 +6,7 @@ are cached locally -- no API key, fully local. Records from the default
 microphone via sounddevice; recording stops when you press Enter (simplest
 reliable approach for a CLI loop -- no voice-activity-detection tuning needed).
 """
+import io
 import queue
 import sys
 from typing import List, Optional, Tuple
@@ -13,6 +14,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import sounddevice as sd
 from faster_whisper import WhisperModel
+from faster_whisper.audio import decode_audio
 
 MODEL_SIZE = "medium"
 SAMPLE_RATE = 16000  # Whisper's expected input sample rate
@@ -60,6 +62,17 @@ def transcribe_audio(audio: np.ndarray, language: Optional[str] = None) -> Tuple
     segments, info = model.transcribe(audio, language=language, beam_size=5)
     text = " ".join(segment.text.strip() for segment in segments)
     return text.strip(), info.language
+
+
+def transcribe_bytes(audio_bytes: bytes, language: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Transcribes an arbitrary audio file's raw bytes (e.g. an HTTP upload of unknown
+    format/sample rate) -- unlike transcribe_audio(), which expects an already-decoded
+    SAMPLE_RATE float32 array from the mic recorder. Uses faster-whisper's own
+    decode_audio() (ffmpeg/av-based) to resample to SAMPLE_RATE mono float32 first.
+    """
+    audio = decode_audio(io.BytesIO(audio_bytes), sampling_rate=SAMPLE_RATE)
+    return transcribe_audio(audio, language=language)
 
 
 def listen_and_transcribe(language: Optional[str] = None) -> Tuple[str, str]:

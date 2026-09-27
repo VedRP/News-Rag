@@ -53,3 +53,7 @@ news/*.pdf
 # not source -- see backend/voice/tts.py)
 backend/voice/piper_voices/*.onnx
 backend/voice/piper_voices/*.onnx.json
+
+# Local server run logs (uvicorn stdout/stderr redirected during manual testing)
+uvicorn_out.log
+uvicorn_err.log
