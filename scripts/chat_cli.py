@@ -3,10 +3,10 @@ Interactive Phase 5 CLI -- talk to the conversational news assistant yourself.
 
 Run: python scripts/chat_cli.py
 
-On start, offers to (re-)fetch live news from newsdata.io into Qdrant (replacing
-the earlier PDF-based ingestion per later project direction -- see
-backend/ingestion/newsdata_pipeline.py), then drops you into a "You: " loop.
-Try a flow like:
+On start, offers to (re-)fetch live news from newsdata.io and/or gnews.io into
+Qdrant (replacing the earlier PDF-based ingestion per later project direction --
+see backend/ingestion/newsdata_pipeline.py and gnews_pipeline.py), then drops you
+into a "You: " loop. Try a flow like:
 
     You: Give me politics news.
     (numbered list of stories comes back)
@@ -30,7 +30,9 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from backend.ingestion.newsdata_client import NewsDataAPIError
-from backend.ingestion.newsdata_pipeline import fetch_and_convert
+from backend.ingestion.newsdata_pipeline import fetch_and_convert as newsdata_fetch
+from backend.ingestion.gnews_client import GNewsAPIError
+from backend.ingestion.gnews_pipeline import fetch_and_convert as gnews_fetch
 from backend.ingestion.index import index_chunks
 from backend.retrieval.qdrant_client import get_client, reset_collection
 from backend.conversation.state import new_session
@@ -38,14 +40,19 @@ from backend.conversation.pipeline import handle_turn
 
 
 def offer_indexing() -> None:
-    choice = input("Fetch fresh news from newsdata.io? [Y/n]: ").strip().lower()
+    choice = input("Fetch fresh news? [Y/n]: ").strip().lower()
     if choice == "n":
         print("[Skipping fetch -- using whatever's already indexed in Qdrant.]\n")
         return
 
-    country = input("Country code(s), comma-separated (e.g. in,us) [in]: ").strip() or "in"
-    language = input("Language code(s), comma-separated (e.g. en,hi) [en]: ").strip() or "en"
-    category = input("Category(s), optional (e.g. politics,sports,technology) []: ").strip()
+    print("Sources: 1) newsdata.io  2) gnews.io  3) both")
+    source_choice = input("Which source(s)? [3]: ").strip() or "3"
+    use_newsdata = source_choice in ("1", "3")
+    use_gnews = source_choice in ("2", "3")
+
+    country = input("Country code (e.g. in, us) [in]: ").strip() or "in"
+    language = input("Language code (e.g. en, hi) [en]: ").strip() or "en"
+    category = input("Category, optional (e.g. sports, technology, business) []: ").strip() or None
 
     clear_first = input(
         "Clear previously indexed data first, for a clean test run? [Y/n]: "
@@ -55,25 +62,32 @@ def offer_indexing() -> None:
         reset_collection(get_client())
         print("[OK] Collection cleared.")
 
-    print("Fetching latest news from newsdata.io...")
-    try:
-        chunks = fetch_and_convert(
-            country=[c.strip() for c in country.split(",") if c.strip()],
-            language=[l.strip() for l in language.split(",") if l.strip()],
-            category=[c.strip() for c in category.split(",") if c.strip()] or None,
-            size=10,
-        )
-    except (NewsDataAPIError, ValueError) as e:
-        print(f"[FAILED] {e}")
-        print("Continuing with whatever's already indexed in Qdrant.\n")
-        return
+    total = 0
 
-    if not chunks:
-        print("[No articles returned for that filter -- try different country/language/category.]\n")
-        return
+    if use_newsdata:
+        print("Fetching latest news from newsdata.io...")
+        try:
+            chunks = newsdata_fetch(
+                country=[country], language=[language], category=[category] if category else None, size=10
+            )
+            total += index_chunks(chunks)
+            print(f"[OK] Indexed {len(chunks)} articles from newsdata.io.")
+        except (NewsDataAPIError, ValueError) as e:
+            print(f"[FAILED] newsdata.io: {e}")
 
-    index_chunks(chunks)
-    print(f"[OK] Indexed {len(chunks)} articles.\n")
+    if use_gnews:
+        print("Fetching latest news from gnews.io...")
+        try:
+            chunks = gnews_fetch(country=country, language=language, category=category, max_articles=10)
+            total += index_chunks(chunks)
+            print(f"[OK] Indexed {len(chunks)} articles from gnews.io.")
+        except (GNewsAPIError, ValueError) as e:
+            print(f"[FAILED] gnews.io: {e}")
+
+    if total == 0:
+        print("[No articles indexed -- try different country/language/category, or check API keys.]\n")
+    else:
+        print(f"[OK] Indexed {total} articles total.\n")
 
 
 def print_state(state) -> None:

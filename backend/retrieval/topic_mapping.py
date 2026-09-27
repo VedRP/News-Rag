@@ -1,54 +1,89 @@
 """
 Maps our intent taxonomy's topics (backend.llm.prompts.intent_parser.TOPIC_TAXONOMY --
-richer, meant for natural-language understanding) to newsdata.io's actual, fixed
-category vocabulary (confirmed from their docs: business, crime, domestic, education,
-entertainment, environment, food, health, lifestyle, politics, science, sports,
-technology, top, tourism, world, other -- 17 total).
+richer, meant for natural-language understanding) to the real, fixed category
+vocabularies of our two news sources:
 
-Why this exists: chunks indexed from newsdata.io (backend/ingestion/newsdata_pipeline.py)
-carry the API's own category values verbatim in their "topics" field. Confirmed live
-against actually-indexed data: only newsdata.io's real category strings ever appear
-there (e.g. "business", "politics", "top") -- never anything from our richer taxonomy
-(e.g. "cricket", "automobile", "real_estate" don't exist in the data at all). A Qdrant
-topic filter built directly from an unmapped intent topic would silently match nothing
-for most of the taxonomy.
+- newsdata.io (confirmed from their docs): business, crime, domestic, education,
+  entertainment, environment, food, health, lifestyle, politics, science, sports,
+  technology, top, tourism, world, other -- 17 values.
+- gnews.io (confirmed from their docs): general, world, nation, business, technology,
+  entertainment, sports, science, health -- 9 values.
 
-Topics with no reasonable newsdata.io equivalent map to an empty list, meaning "don't
-filter on this" -- retrieval still runs (semantic search via raw_query_for_search), it
-just isn't narrowed by category. That's a safe default: backend.rag.answer already
-falls back to unfiltered search whenever a filter yields zero hits.
+Why this exists: chunks indexed from either source (backend/ingestion/
+newsdata_pipeline.py, backend/ingestion/gnews_pipeline.py) carry that source's OWN
+category values verbatim in their "topics" field -- confirmed live against actually-
+indexed data. Neither source uses our richer taxonomy's exact words (e.g. "cricket",
+"automobile", "real_estate" don't exist in either API's vocabulary). A Qdrant topic
+filter built directly from an unmapped intent topic would silently match nothing.
+
+Two mapping directions are needed:
+- FETCH: when pre-filtering a request TO one specific API by category, each API
+  needs its OWN category name (to_newsdata_category / to_gnews_category).
+- FILTER: when narrowing a Qdrant search over ALREADY-INDEXED chunks (which may be
+  from either source), match against the union of both sources' equivalent values
+  (to_filter_categories).
+
+A topic with no reasonable equivalent in a given taxonomy maps to None/empty, meaning
+"don't filter/pre-filter on this" -- safe, since backend.rag.answer already falls back
+to unfiltered semantic search whenever a filter yields zero hits.
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-TOPIC_TO_NEWSDATA_CATEGORY: Dict[str, List[str]] = {
-    "politics": ["politics"],
-    "national": ["domestic", "top"],
-    "international": ["world"],
-    "sports": ["sports"],
-    "business": ["business"],
-    "finance": ["business"],  # newsdata.io has no dedicated finance/markets category
-    "technology": ["technology"],
-    "science": ["science"],
-    "health": ["health"],
-    "education": ["education"],
-    "entertainment": ["entertainment"],
-    "lifestyle": ["lifestyle"],
-    "automobile": ["technology"],  # closest real category; weak match
-    "environment": ["environment"],
-    "weather": ["environment"],  # weak match; newsdata.io has no weather category
-    "crime": ["crime"],
-    "real_estate": [],  # no real equivalent -- semantic search only
-    "agriculture": [],
-    "travel": ["tourism"],
-    "culture": ["lifestyle"],  # weak match
-    "local": ["domestic"],
-    "defence": [],  # too broad/ambiguous to map safely (world/politics/top all overlap)
-    "energy": [],
-    "jobs": ["business"],  # weak match
-    "general": [],
+NEWSDATA_CATEGORIES = {
+    "business", "crime", "domestic", "education", "entertainment", "environment",
+    "food", "health", "lifestyle", "politics", "science", "sports", "technology",
+    "top", "tourism", "world", "other",
+}
+
+GNEWS_CATEGORIES = {
+    "general", "world", "nation", "business", "technology", "entertainment",
+    "sports", "science", "health",
+}
+
+# topic -> (newsdata.io category or None, gnews.io category or None)
+_TOPIC_TO_SOURCE_CATEGORIES: Dict[str, tuple[Optional[str], Optional[str]]] = {
+    "politics": ("politics", "nation"),
+    "national": ("domestic", "nation"),
+    "international": ("world", "world"),
+    "sports": ("sports", "sports"),
+    "business": ("business", "business"),
+    "finance": ("business", "business"),  # neither has a dedicated finance/markets category
+    "technology": ("technology", "technology"),
+    "science": ("science", "science"),
+    "health": ("health", "health"),
+    "education": ("education", None),  # gnews has no education category
+    "entertainment": ("entertainment", "entertainment"),
+    "lifestyle": ("lifestyle", None),  # gnews has no lifestyle category
+    "automobile": ("technology", "technology"),  # closest real category; weak match
+    "environment": ("environment", None),  # gnews has no environment category
+    "weather": ("environment", None),  # weak match; neither has a weather category
+    "crime": ("crime", None),  # gnews has no crime category
+    "real_estate": (None, None),  # no real equivalent in either -- semantic search only
+    "agriculture": (None, None),
+    "travel": ("tourism", None),  # gnews has no tourism category
+    "culture": ("lifestyle", None),  # weak match
+    "local": ("domestic", "nation"),
+    "defence": (None, None),  # too broad/ambiguous to map safely
+    "energy": (None, None),
+    "jobs": ("business", "business"),  # weak match
+    "general": (None, "general"),
 }
 
 
-def to_newsdata_categories(topic: str) -> List[str]:
-    """Returns the newsdata.io category values to filter/fetch by for a given intent topic."""
-    return TOPIC_TO_NEWSDATA_CATEGORY.get(topic, [])
+def to_newsdata_category(topic: str) -> Optional[str]:
+    """The single newsdata.io category to request when fetching by this topic, if any."""
+    return _TOPIC_TO_SOURCE_CATEGORIES.get(topic, (None, None))[0]
+
+
+def to_gnews_category(topic: str) -> Optional[str]:
+    """The single gnews.io category to request when fetching by this topic, if any."""
+    return _TOPIC_TO_SOURCE_CATEGORIES.get(topic, (None, None))[1]
+
+
+def to_filter_categories(topic: str) -> List[str]:
+    """
+    The set of real category values (from either source) to match against the "topics"
+    field when filtering already-indexed chunks -- used by backend.retrieval.metadata_filter.
+    """
+    newsdata_cat, gnews_cat = _TOPIC_TO_SOURCE_CATEGORIES.get(topic, (None, None))
+    return [c for c in (newsdata_cat, gnews_cat) if c]

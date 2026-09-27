@@ -3,7 +3,7 @@ from typing import List, Optional
 from qdrant_client.models import Filter, FieldCondition, MatchAny
 
 from backend.backend_validation import ValidatedIntent
-from backend.retrieval.topic_mapping import to_newsdata_categories
+from backend.retrieval.topic_mapping import to_filter_categories
 
 
 def build_filter(intent: ValidatedIntent) -> Optional[Filter]:
@@ -15,12 +15,13 @@ def build_filter(intent: ValidatedIntent) -> Optional[Filter]:
     fields. So any location term the user gave (city and/or state) is matched against
     that one "location" field with MatchAny.
 
-    "topics" on newsdata.io-sourced chunks (backend/ingestion/newsdata_pipeline.py)
-    holds the API's own real category values verbatim, not our intent taxonomy's
-    richer topic names -- confirmed live against indexed data (e.g. "business",
-    "politics", "top", never "cricket" or "real_estate"). to_newsdata_categories()
-    maps the intent's topic to the matching real category value(s) before filtering;
-    a topic with no real equivalent (e.g. "agriculture") maps to an empty list, which
+    "topics" on chunks sourced from either newsdata.io or gnews.io (backend/ingestion/
+    newsdata_pipeline.py, backend/ingestion/gnews_pipeline.py) holds that source's own
+    real category values verbatim, not our intent taxonomy's richer topic names --
+    confirmed live against indexed data (e.g. "business", "politics", "top", never
+    "cricket" or "real_estate"). to_filter_categories() maps the intent's topic to the
+    union of both sources' matching real category value(s) before filtering; a topic
+    with no real equivalent in either (e.g. "agriculture") maps to an empty list, which
     means no topic filter at all -- safe, since retrieval still runs via semantic
     search on raw_query_for_search.
 
@@ -34,7 +35,7 @@ def build_filter(intent: ValidatedIntent) -> Optional[Filter]:
     must: List[FieldCondition] = []
 
     if intent.topic:
-        categories = to_newsdata_categories(intent.topic)
+        categories = to_filter_categories(intent.topic)
         if categories:
             must.append(FieldCondition(key="topics", match=MatchAny(any=categories)))
 
